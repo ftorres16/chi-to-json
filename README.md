@@ -16,7 +16,14 @@ If you want more than one signal to be extracted to the same pair of axes, you h
 
 Run `chi_to_json <path to your .chi file> <path to desired .json output file>` and wait for the extraction to be finished.
 
-### Supported analyses
+## Supported analyses
 - tran
 - dc
 - ac
+
+## Related repos
+
+If you find this repo useful, there's a good chance you may want to check some of my other related work as well.
+
+- [tannner_to_eldo](https://github.com/ftorres16/tanner_to_eldo) can transform Tanner generated SPICE netlists into ELDO compatible ones.
+- [plot_eldo_sims](https://github.com/ftorres16/plot_eldo_sims) can plot the JSON output of this command using Python's matlplotlib.
