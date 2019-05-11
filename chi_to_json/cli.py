@@ -1,7 +1,9 @@
 import json
 import re
+import os
 
 import click
+import jsonschema
 
 
 SIM_HEADERS = {
@@ -10,6 +12,8 @@ SIM_HEADERS = {
     "AC ANALYSIS": "ac",
 }
 
+JSON_SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "jsonschema.json")
+
 
 @click.command()
 @click.argument("input", type=click.File("r"))
@@ -17,61 +21,110 @@ SIM_HEADERS = {
 def cli(input, output):
     """
     This command takes an ELDO simulation output (a .chi file) and saves the data to a JSON file.
+
+    Example:
+        [
+            {
+                "sim_type": "tran",
+                "name": "RC circuit simulation",
+                "plots": [
+                    [
+                        {
+                            "name": "time",
+                            "unit": "s",
+                            "data": [1,2,3,4]
+                        },
+                        {
+                            "name": "N_1",
+                            "unit": "V",
+                            "data": [1.0,2.0,3.0,4.0]
+                        }
+                    ]
+                ]
+            }
+        ]
     """
 
     sim_flag = False
-    sim_results = {
-        "tran": {"V": {"unit": "V", "plots": []}, "I": {"unit": "A", "plots": []}},
-        "dc": {"V": {"unit": "V", "plots": []}, "I": {"unit": "A", "plots": []}},
-        "ac": {"Mag": {"unit": "db", "plots": []}, "Phase": {"unit": "°", "plots": []}},
-    }
+    sim_results = []
 
     all_lines = input.readlines()
 
     for index, line in enumerate(all_lines):
         if any(sim_header in line for sim_header in SIM_HEADERS):
             sim_flag = True
-            sim_type = [
+            sim_type = next(
                 sim_type
                 for sim_header, sim_type in SIM_HEADERS.items()
                 if sim_header in line
-            ][0]
+            )
             data_flag = False
             print_legends = {}
-            continue
 
-        if sim_flag:
+            try:
+                all_sim_types = [sim_result["sim_type"] for sim_result in sim_results]
+                sim_index = all_sim_types.index(sim_type)
+            except ValueError:
+                sim_results.append({"sim_type": sim_type, "plots": []})
+                sim_index = -1
+
+        elif sim_flag:
             if line.startswith("Print_Legend"):
                 # Gather all the print legends
-                legend_regex = r"Print_Legend (\d+): (\w+\(\w+(?:\.\w+)?\))"
-                header_name, legend = re.findall(legend_regex, line)[0]
+                legend_regex = re.compile(r"Print_Legend (\d+): (\w+\(\w+(?:\.\w+)?\))")
+                header_name, legend = legend_regex.findall(line)[0]
                 print_legends[header_name] = legend
 
             elif "X" in line:
-                headers = [
-                    print_legends.get(header, header)
-                    for header in all_lines[index - 1].split()
-                ]
-                traces = {header: [] for header in headers}
+                headers_line = all_lines[index - 1]
+                plot = []
+
+                for header in headers_line.split():
+                    header = print_legends.get(header, header).lower()
+                    trace = {"data": []}
+
+                    headers_regex = re.compile(r"(\w+)\(([\w\.]+)\)")
+
+                    if headers_regex.match(header):
+                        trace_type, name = headers_regex.findall(header)[0]
+                        trace["name"] = name
+
+                        if trace_type.endswith("db"):
+                            trace["unit"] = "db"
+                        elif trace_type.endswith("p"):
+                            trace["unit"] = "°"
+                        elif trace_type.startswith("v"):
+                            trace["unit"] = "V"
+                        elif trace_type.startswith("i"):
+                            trace["unit"] = "A"
+                    else:
+                        trace["name"] = header
+
+                        if header == "time":
+                            trace["unit"] = "s"
+                        elif header == "hertz":
+                            trace["unit"] = "Hz"
+
+                    plot.append(trace)
+
                 data_flag = True
 
             elif data_flag and "Y" not in line:
-                values = line.split()
-                for header, value in zip(headers, values):
-                    traces[header].append(float(value))
+                for index, value in enumerate(line.split()):
+                    plot[index]["data"].append(float(value))
 
-            elif data_flag:
+            elif data_flag and "Y" in line:
                 sim_flag = False
                 data_flag = False
-                if sim_type == "ac":
-                    trace_type = headers[-1].split("(")[0][1:]
-                    if trace_type == "DB":
-                        trace_type = "Mag"
-                    elif trace_type == "P":
-                        trace_type = "Phase"
-                else:
-                    trace_type = headers[-1][0]  # tran
-                sim_results[sim_type][trace_type]["plots"].append({"traces": traces})
+                sim_results[sim_index]["plots"].append(plot)
+
+    with open(JSON_SCHEMA_PATH) as f:
+        schema = json.load(f)
+
+    try:
+        jsonschema.validate(sim_results, schema)
+    except jsonschema.ValidationError:
+        click.echo("Could not walidate JSON schema", err=True)
 
     json.dump(sim_results, output)
 

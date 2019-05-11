@@ -1,0 +1,58 @@
+{
+    "description": "Output of an ELDO simulation transcribed to a JSON file for further processing and plotting.",
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "sim_type": {
+                "type": "string",
+                "minLength": 2,
+                "description": "Simulation type. Examples include tran, dc and ac."
+            },
+            "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Friendly name for the simulation."
+            },
+            "plots": {
+                "type": "array",
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Name for plotting variable"
+                            },
+                            "unit": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Unit to measure the variable."
+                            },
+                            "data": {
+                                "type": "array",
+                                "items": {
+                                    "type": "number"
+                                },
+                                "minItems": 1,
+                                "description": "Raw data for the waveform."
+                            }
+                        },
+                        "required": [
+                            "name",
+                            "data"
+                        ]
+                    },
+                    "minItems": 2
+                },
+                "minItems": 1
+            }
+        },
+        "required": [
+            "sim_type",
+            "plots"
+        ]
+    }
+}

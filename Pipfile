@@ -11,6 +11,7 @@ black = "*"
 
 [packages]
 click = "*"
+jsonschema = "*"
 
 [requires]
 python_version = "3.7"
